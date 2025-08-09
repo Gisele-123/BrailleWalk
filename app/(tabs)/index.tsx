@@ -29,13 +29,15 @@ export default function ScannerScreen() {
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
   const [lastDescription, setLastDescription] = useState('');
   const detectionInterval = useRef<NodeJS.Timeout | null>(null);
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening, stopListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   useEffect(() => {
     if (!hasSpoken.current) {
       Speech.speak(SCANNER_INSTRUCTIONS);
+      Speech.speak('You can say scan to begin.');
       hasSpoken.current = true;
+      startListening();
     }
   }, []);
 
@@ -49,14 +51,41 @@ export default function ScannerScreen() {
   useEffect(() => {
     if (!transcript) return;
     const command = transcript.toLowerCase();
-    if (command.includes('start scanning')) {
-      if (!isListening) startScanning();
+    const handleAndReset = (fn: () => void) => {
+      fn();
       resetTranscript();
-    } else if (command.includes('stop scanning')) {
-      if (isListening) stopScanning();
-      resetTranscript();
+    };
+    if (command.includes('repeat')) {
+      handleAndReset(() => Speech.speak(SCANNER_INSTRUCTIONS));
+      return;
     }
-    // (Tab switching handled globally)
+    if (
+      command.includes('scan') ||
+      command.includes('start scanning') ||
+      command.includes('describe') ||
+      command.includes('what do you see')
+    ) {
+      Speech.speak("I heard 'scan'. Starting scanning.");
+      handleAndReset(() => {
+        if (!isListening) startScanning();
+      });
+      return;
+    }
+    if (command.includes('stop') || command.includes('stop scanning')) {
+      Speech.speak("I heard 'stop'. Stopping scanning.");
+      handleAndReset(() => {
+        if (isListening) stopScanning();
+      });
+      return;
+    }
+    if (command.includes('help')) {
+      handleAndReset(() => Speech.speak('Say scan to begin describing your surroundings. Say stop to stop scanning. Say repeat to hear this again. Say read screen for a summary.'));
+      return;
+    }
+    if (command.includes('read screen')) {
+      handleAndReset(() => Speech.speak('Scanner screen. Large button at center to start or stop scanning. Repeat button on the left, help button on the right. I will speak detected objects every few seconds while scanning.'));
+      return;
+    }
   }, [transcript]);
 
   useEffect(() => {

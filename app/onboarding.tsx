@@ -20,7 +20,7 @@ export default function OnboardingScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening, stopListening, isListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   async function speakInstructions() {
@@ -28,6 +28,9 @@ export default function OnboardingScreen() {
       Speech.speak(line);
       await sleep(1200 + line.length * 20);
     }
+    Speech.speak('You can say scan to begin.');
+    await sleep(1200);
+    startListening();
   }
 
   useEffect(() => {
@@ -38,9 +41,18 @@ export default function OnboardingScreen() {
   }, []);
 
   useEffect(() => {
-    if (transcript && transcript.toLowerCase().includes('repeat')) {
-      speakInstructions();
+    if (!transcript) return;
+    const text = transcript.toLowerCase();
+    if (text.includes('repeat')) {
       resetTranscript();
+      speakInstructions();
+      return;
+    }
+    if (text.includes('scan')) {
+      Speech.speak("I heard 'scan'. Starting setup.");
+      resetTranscript();
+      stopListening();
+      handleCameraSetup();
     }
   }, [transcript]);
 

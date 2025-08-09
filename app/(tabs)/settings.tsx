@@ -24,20 +24,47 @@ export default function SettingsScreen() {
   const [highContrastMode, setHighContrastMode] = useState(true);
   const [voiceCommandsEnabled, setVoiceCommandsEnabled] = useState(true);
   const [emergencyModeEnabled, setEmergencyModeEnabled] = useState(true);
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   useEffect(() => {
     if (!hasSpoken.current) {
       Speech.speak(SETTINGS_INSTRUCTIONS);
+      Speech.speak('Say read screen to hear a summary, or say toggle and the setting name to change it.');
       hasSpoken.current = true;
+      startListening();
     }
   }, []);
 
   useEffect(() => {
-    if (transcript && transcript.toLowerCase().includes('repeat')) {
-      Speech.speak(SETTINGS_INSTRUCTIONS);
-      resetTranscript();
+    if (!transcript) return;
+    const text = transcript.toLowerCase();
+    const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
+    if (text.includes('repeat')) {
+      handleAndReset(() => Speech.speak(SETTINGS_INSTRUCTIONS));
+      return;
+    }
+    if (text.includes('read screen')) {
+      handleAndReset(() => Speech.speak('Settings screen. Accessibility options include Voice Feedback, Haptic Feedback, Auto-Scan Environment, High Contrast Mode, Voice Commands, and Emergency Features. Say toggle followed by the setting name to change it.'));
+      return;
+    }
+    if (text.includes('toggle')) {
+      const settingName = text.replace('toggle', '').trim();
+      const toggleMap: Record<string, () => void> = {
+        'voice feedback': () => handleVoiceToggle(!voiceEnabled),
+        'haptic feedback': () => handleHapticToggle(!hapticEnabled),
+        'auto-scan environment': () => setAutoScanEnabled(!autoScanEnabled),
+        'high contrast mode': () => setHighContrastMode(!highContrastMode),
+        'voice commands': () => setVoiceCommandsEnabled(!voiceCommandsEnabled),
+        'emergency features': () => setEmergencyModeEnabled(!emergencyModeEnabled),
+      };
+      const match = Object.keys(toggleMap).find(k => settingName.includes(k));
+      if (match) {
+        handleAndReset(toggleMap[match]);
+        Speech.speak(`${match} ${'toggled'}`);
+      } else {
+        handleAndReset(() => Speech.speak('I did not catch which setting to toggle. Please say for example: toggle voice feedback.'));
+      }
     }
   }, [transcript]);
 

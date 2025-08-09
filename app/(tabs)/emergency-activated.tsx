@@ -9,20 +9,33 @@ const EMERGENCY_INSTRUCTIONS = 'Emergency mode is now active. Your location has 
 
 export default function EmergencyActivatedScreen() {
   const router = useRouter();
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   useEffect(() => {
     if (!hasSpoken.current) {
       Speech.speak(EMERGENCY_INSTRUCTIONS);
+      Speech.speak('Say back to return to the emergency screen, or say read screen to hear a summary.');
       hasSpoken.current = true;
+      startListening();
     }
   }, []);
 
   useEffect(() => {
-    if (transcript && transcript.toLowerCase().includes('repeat')) {
-      Speech.speak(EMERGENCY_INSTRUCTIONS);
-      resetTranscript();
+    if (!transcript) return;
+    const text = transcript.toLowerCase();
+    const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
+    if (text.includes('repeat')) {
+      handleAndReset(() => Speech.speak(EMERGENCY_INSTRUCTIONS));
+      return;
+    }
+    if (text.includes('read screen')) {
+      handleAndReset(() => Speech.speak('Emergency active screen. Your contacts have been notified. One button to go back to the emergency page.'));
+      return;
+    }
+    if (text.includes('back')) {
+      handleAndReset(() => router.replace('/(tabs)/emergency'));
+      return;
     }
   }, [transcript]);
 

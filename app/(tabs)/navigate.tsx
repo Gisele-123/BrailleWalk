@@ -21,20 +21,48 @@ export default function NavigateScreen() {
   const [isListening, setIsListening] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening, stopListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   useEffect(() => {
     if (!hasSpoken.current) {
       Speech.speak(NAVIGATION_INSTRUCTIONS);
+      Speech.speak('You can say navigate to and the destination.');
       hasSpoken.current = true;
+      startListening();
     }
   }, []);
 
   useEffect(() => {
-    if (transcript && transcript.toLowerCase().includes('repeat')) {
-      Speech.speak(NAVIGATION_INSTRUCTIONS);
-      resetTranscript();
+    if (!transcript) return;
+    const text = transcript.toLowerCase();
+    const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
+    if (text.includes('repeat')) {
+      handleAndReset(() => Speech.speak(NAVIGATION_INSTRUCTIONS));
+      return;
+    }
+    if (text.includes('read screen')) {
+      handleAndReset(() => Speech.speak('Navigation screen. Enter destination text field and buttons for start, stop, and repeat. You can say navigate to followed by your destination.'));
+      return;
+    }
+    if (text.includes('navigate to')) {
+      const dest = text.split('navigate to')[1]?.trim();
+      if (dest && dest.length > 0) {
+        Speech.speak(`I heard navigate to ${dest}. Starting navigation.`);
+        setDestination(dest);
+        handleAndReset(() => startNavigation());
+      } else {
+        handleAndReset(() => Speech.speak('Please say the destination after navigate to.'));
+      }
+      return;
+    }
+    if (text.includes('stop navigation') || text.includes('stop')) {
+      handleAndReset(() => stopNavigation());
+      return;
+    }
+    if (text.includes('repeat step') || text.includes('repeat instruction')) {
+      handleAndReset(() => repeatCurrentStep());
+      return;
     }
   }, [transcript]);
 
@@ -178,8 +206,14 @@ export default function NavigateScreen() {
         <TouchableOpacity
           style={[styles.voiceButton, { backgroundColor: isListening ? '#00AA00' : '#333333' }]}
           onPress={() => {
+            if (isListening) {
+              Speech.speak('Voice input disabled');
+              stopListening();
+            } else {
+              Speech.speak('Voice input enabled. Say your destination.');
+              startListening();
+            }
             setIsListening(!isListening);
-            Speech.speak(isListening ? 'Voice input disabled' : 'Voice input enabled. Say your destination.');
           }}
           accessible={true}
           accessibilityLabel={isListening ? 'Disable voice input' : 'Enable voice input'}

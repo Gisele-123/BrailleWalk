@@ -26,20 +26,37 @@ export default function EmergencyScreen() {
   const [countdown, setCountdown] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { transcript, resetTranscript } = useSpeechRecognition();
+  const { transcript, resetTranscript, startListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
   useEffect(() => {
     if (!hasSpoken.current) {
       Speech.speak(EMERGENCY_INSTRUCTIONS);
+      Speech.speak('You can say emergency to activate, or say cancel to stop the countdown.');
       hasSpoken.current = true;
+      startListening();
     }
   }, []);
 
   useEffect(() => {
-    if (transcript && transcript.toLowerCase().includes('repeat')) {
-      Speech.speak(EMERGENCY_INSTRUCTIONS);
-      resetTranscript();
+    if (!transcript) return;
+    const text = transcript.toLowerCase();
+    const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
+    if (text.includes('repeat')) {
+      handleAndReset(() => Speech.speak(EMERGENCY_INSTRUCTIONS));
+      return;
+    }
+    if (text.includes('emergency')) {
+      handleAndReset(() => startEmergencyCountdown());
+      return;
+    }
+    if (text.includes('cancel')) {
+      handleAndReset(() => cancelEmergency());
+      return;
+    }
+    if (text.includes('read screen')) {
+      handleAndReset(() => Speech.speak('Emergency screen. Large red emergency button in the center. Quick actions for share location and instructions. List of emergency contacts below.'));
+      return;
     }
   }, [transcript]);
 
