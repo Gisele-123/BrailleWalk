@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { Camera, UserCheck, Volume2 } from 'lucide-react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../utils/voice';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 function sleep(ms: number) {
@@ -25,10 +26,10 @@ export default function OnboardingScreen() {
 
   async function speakInstructions() {
     for (const line of ONBOARDING_INSTRUCTIONS) {
-      Speech.speak(line);
+      speak(line);
       await sleep(1200 + line.length * 20);
     }
-    Speech.speak('You can say scan to begin.');
+    speak('Say scan to begin.');
     await sleep(1200);
     startListening();
   }
@@ -49,7 +50,7 @@ export default function OnboardingScreen() {
       return;
     }
     if (text.includes('scan')) {
-      Speech.speak("I heard 'scan'. Starting setup.");
+      speak("I heard 'scan'. Starting setup.");
       resetTranscript();
       stopListening();
       handleCameraSetup();
@@ -60,29 +61,29 @@ export default function OnboardingScreen() {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Speech.speak('Camera permission is required for BrailleWalk to function. Please enable camera access in settings.');
+        speak('Camera permission is required for BrailleWalk to function. Please enable camera access in settings.');
         return;
       }
     }
     setIsScanning(true);
     // Speak with pauses to allow user to prepare
     async function speakScanInstructions() {
-      Speech.speak('Hold your device at arm\'s length and look directly at the camera.');
+      speak('Hold your device at arm\'s length and look directly at the camera.');
       await sleep(2500);
-      Speech.speak('Scanning will begin automatically. Please hold still.');
+      speak('Scanning will begin automatically. Please hold still.');
       await sleep(2500);
       // Simulate facial recognition process
       setTimeout(() => {
         setScanComplete(true);
         setIsScanning(false);
-        Speech.speak('Facial recognition setup complete. You can now use BrailleWalk securely.');
+        speak('Facial recognition setup complete. You can now use BrailleWalk securely.');
       }, 2000);
     }
     speakScanInstructions();
   };
 
   const handleContinue = () => {
-    Speech.speak('Entering BrailleWalk main interface.');
+    speak('Entering BrailleWalk main interface.');
     router.replace('/(tabs)');
   };
 

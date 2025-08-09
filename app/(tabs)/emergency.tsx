@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../../utils/voice';
 import * as Haptics from 'expo-haptics';
 import { TriangleAlert as AlertTriangle, Phone, MapPin, Volume2, UserPlus, Shield } from 'lucide-react-native';
 import { Platform } from 'react-native';
@@ -31,8 +32,8 @@ export default function EmergencyScreen() {
 
   useEffect(() => {
     if (!hasSpoken.current) {
-      Speech.speak(EMERGENCY_INSTRUCTIONS);
-      Speech.speak('You can say emergency to activate, or say cancel to stop the countdown.');
+      speak(EMERGENCY_INSTRUCTIONS);
+      speak('Say sos to activate. Say cancel to stop countdown.');
       hasSpoken.current = true;
       startListening();
     }
@@ -43,10 +44,10 @@ export default function EmergencyScreen() {
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => Speech.speak(EMERGENCY_INSTRUCTIONS));
+      handleAndReset(() => speak(EMERGENCY_INSTRUCTIONS));
       return;
     }
-    if (text.includes('emergency')) {
+    if (text.includes('sos') || text.includes('emergency')) {
       handleAndReset(() => startEmergencyCountdown());
       return;
     }
@@ -54,8 +55,8 @@ export default function EmergencyScreen() {
       handleAndReset(() => cancelEmergency());
       return;
     }
-    if (text.includes('read screen')) {
-      handleAndReset(() => Speech.speak('Emergency screen. Large red emergency button in the center. Quick actions for share location and instructions. List of emergency contacts below.'));
+    if (text.includes('read') || text.includes('read screen')) {
+      handleAndReset(() => speak('Emergency screen. Large red emergency button in the center. Quick actions for share location and instructions. List of emergency contacts below.'));
       return;
     }
   }, [transcript]);
@@ -77,7 +78,7 @@ export default function EmergencyScreen() {
     
     setCountdown(5);
     setIsEmergencyActive(true);
-    Speech.speak('Emergency mode activating in 5 seconds. Tap cancel to stop.');
+    speak('Emergency mode activating in 5 seconds. Tap cancel to stop.');
     
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -87,7 +88,7 @@ export default function EmergencyScreen() {
   const cancelEmergency = () => {
     setIsEmergencyActive(false);
     setCountdown(0);
-    Speech.speak('Emergency mode cancelled.');
+    speak('Emergency mode cancelled.');
     
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -95,7 +96,7 @@ export default function EmergencyScreen() {
   };
 
   const activateEmergencyMode = () => {
-    Speech.speak('Emergency mode activated. Sharing your location with emergency contacts and activating audio beacon. Moving to emergency page, please wait...');
+    speak('Emergency mode activated. Sharing your location with emergency contacts and activating audio beacon. Moving to emergency page, please wait...');
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
@@ -113,7 +114,7 @@ export default function EmergencyScreen() {
   };
 
   const callContact = (contact: EmergencyContact) => {
-    Speech.speak(`Calling ${contact.name}`);
+    speak(`Calling ${contact.name}`);
     // In a real app, this would trigger a phone call
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -121,7 +122,7 @@ export default function EmergencyScreen() {
   };
 
   const shareLocation = () => {
-    Speech.speak('Sharing your current location with emergency contacts.');
+    speak('Sharing your current location with emergency contacts.');
     // Simulate location sharing
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -206,7 +207,7 @@ export default function EmergencyScreen() {
 
             <TouchableOpacity
               style={styles.quickActionButton}
-              onPress={() => Speech.speak('Emergency features: Tap the red emergency button to activate emergency mode. Use quick actions to share location or repeat instructions.')}
+              onPress={() => speak('Emergency features: Tap the red emergency button to activate emergency mode. Use quick actions to share location or repeat instructions.')}
               accessible={true}
               accessibilityLabel="Get help with emergency features"
               accessibilityRole="button"

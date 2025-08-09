@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, FlatList } from 'react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../../utils/voice';
 import * as Haptics from 'expo-haptics';
 import { Settings, Volume2, VolumeX, Vibrate, Moon, Sun, Mic, Shield, Camera } from 'lucide-react-native';
 import { Platform } from 'react-native';
@@ -29,8 +30,8 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     if (!hasSpoken.current) {
-      Speech.speak(SETTINGS_INSTRUCTIONS);
-      Speech.speak('Say read screen to hear a summary, or say toggle and the setting name to change it.');
+      speak(SETTINGS_INSTRUCTIONS);
+      speak('Say read for a summary. Say voice, haptic, auto, contrast, commands, or emergency to toggle.');
       hasSpoken.current = true;
       startListening();
     }
@@ -41,29 +42,26 @@ export default function SettingsScreen() {
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => Speech.speak(SETTINGS_INSTRUCTIONS));
+      handleAndReset(() => speak(SETTINGS_INSTRUCTIONS));
       return;
     }
-    if (text.includes('read screen')) {
-      handleAndReset(() => Speech.speak('Settings screen. Accessibility options include Voice Feedback, Haptic Feedback, Auto-Scan Environment, High Contrast Mode, Voice Commands, and Emergency Features. Say toggle followed by the setting name to change it.'));
+    if (text.includes('read') || text.includes('read screen')) {
+      handleAndReset(() => speak('Settings screen. Say voice, haptic, auto, contrast, commands, or emergency to toggle that setting.'));
       return;
     }
-    if (text.includes('toggle')) {
-      const settingName = text.replace('toggle', '').trim();
-      const toggleMap: Record<string, () => void> = {
-        'voice feedback': () => handleVoiceToggle(!voiceEnabled),
-        'haptic feedback': () => handleHapticToggle(!hapticEnabled),
-        'auto-scan environment': () => setAutoScanEnabled(!autoScanEnabled),
-        'high contrast mode': () => setHighContrastMode(!highContrastMode),
-        'voice commands': () => setVoiceCommandsEnabled(!voiceCommandsEnabled),
-        'emergency features': () => setEmergencyModeEnabled(!emergencyModeEnabled),
-      };
-      const match = Object.keys(toggleMap).find(k => settingName.includes(k));
-      if (match) {
-        handleAndReset(toggleMap[match]);
-        Speech.speak(`${match} ${'toggled'}`);
-      } else {
-        handleAndReset(() => Speech.speak('I did not catch which setting to toggle. Please say for example: toggle voice feedback.'));
+    const toggleShortcuts: Array<[string, () => void, string]> = [
+      ['voice', () => handleVoiceToggle(!voiceEnabled), 'Voice feedback'],
+      ['haptic', () => handleHapticToggle(!hapticEnabled), 'Haptic feedback'],
+      ['auto', () => setAutoScanEnabled(!autoScanEnabled), 'Auto-scan environment'],
+      ['contrast', () => setHighContrastMode(!highContrastMode), 'High contrast mode'],
+      ['commands', () => setVoiceCommandsEnabled(!voiceCommandsEnabled), 'Voice commands'],
+      ['emergency', () => setEmergencyModeEnabled(!emergencyModeEnabled), 'Emergency features'],
+    ];
+    for (const [key, action, label] of toggleShortcuts) {
+      if (text.includes(key)) {
+        handleAndReset(action);
+        speak(`${label} toggled.`);
+        return;
       }
     }
   }, [transcript]);
@@ -71,9 +69,9 @@ export default function SettingsScreen() {
   const handleVoiceToggle = (value: boolean) => {
     setVoiceEnabled(value);
     if (value) {
-      Speech.speak('Voice feedback enabled');
+      speak('Voice feedback enabled');
     } else {
-      Speech.speak('Voice feedback disabled');
+      speak('Voice feedback disabled');
     }
   };
 
@@ -82,9 +80,9 @@ export default function SettingsScreen() {
     if (Platform.OS !== 'web') {
       if (value) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        Speech.speak('Haptic feedback enabled');
+        speak('Haptic feedback enabled');
       } else {
-        Speech.speak('Haptic feedback disabled');
+        speak('Haptic feedback disabled');
       }
     }
   };
@@ -114,7 +112,7 @@ export default function SettingsScreen() {
       icon: <Camera size={24} color={autoScanEnabled ? "#FFD700" : "#666666"} />,
       onChange: (value) => {
         setAutoScanEnabled(value);
-        Speech.speak(value ? 'Auto-scan enabled' : 'Auto-scan disabled');
+         speak(value ? 'Auto-scan enabled' : 'Auto-scan disabled');
       },
     },
     {
@@ -125,7 +123,7 @@ export default function SettingsScreen() {
       icon: highContrastMode ? <Sun size={24} color="#FFD700" /> : <Moon size={24} color="#666666" />,
       onChange: (value) => {
         setHighContrastMode(value);
-        Speech.speak(value ? 'High contrast mode enabled' : 'High contrast mode disabled');
+         speak(value ? 'High contrast mode enabled' : 'High contrast mode disabled');
       },
     },
     {
@@ -136,7 +134,7 @@ export default function SettingsScreen() {
       icon: <Mic size={24} color={voiceCommandsEnabled ? "#FFD700" : "#666666"} />,
       onChange: (value) => {
         setVoiceCommandsEnabled(value);
-        Speech.speak(value ? 'Voice commands enabled' : 'Voice commands disabled');
+         speak(value ? 'Voice commands enabled' : 'Voice commands disabled');
       },
     },
     {
@@ -147,7 +145,7 @@ export default function SettingsScreen() {
       icon: <Shield size={24} color={emergencyModeEnabled ? "#FFD700" : "#666666"} />,
       onChange: (value) => {
         setEmergencyModeEnabled(value);
-        Speech.speak(value ? 'Emergency features enabled' : 'Emergency features disabled');
+         speak(value ? 'Emergency features enabled' : 'Emergency features disabled');
       },
     },
   ];
@@ -214,7 +212,7 @@ export default function SettingsScreen() {
 
         <TouchableOpacity
           style={styles.voiceTestButton}
-          onPress={() => Speech.speak('This is a voice test. BrailleWalk voice feedback is working correctly.')}
+          onPress={() => speak('This is a voice test. BrailleWalk voice feedback is working correctly.')}
           accessible={true}
           accessibilityLabel="Test voice feedback"
           accessibilityRole="button"

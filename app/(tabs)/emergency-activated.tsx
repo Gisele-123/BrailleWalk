@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Shield, ArrowLeft } from 'lucide-react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../../utils/voice';
 import { useRouter } from 'expo-router';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
 
@@ -14,8 +15,8 @@ export default function EmergencyActivatedScreen() {
 
   useEffect(() => {
     if (!hasSpoken.current) {
-      Speech.speak(EMERGENCY_INSTRUCTIONS);
-      Speech.speak('Say back to return to the emergency screen, or say read screen to hear a summary.');
+      speak(EMERGENCY_INSTRUCTIONS);
+      speak('Say back to return, or say read for a summary.');
       hasSpoken.current = true;
       startListening();
     }
@@ -26,11 +27,11 @@ export default function EmergencyActivatedScreen() {
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => Speech.speak(EMERGENCY_INSTRUCTIONS));
+      handleAndReset(() => speak(EMERGENCY_INSTRUCTIONS));
       return;
     }
-    if (text.includes('read screen')) {
-      handleAndReset(() => Speech.speak('Emergency active screen. Your contacts have been notified. One button to go back to the emergency page.'));
+    if (text.includes('read') || text.includes('read screen')) {
+      handleAndReset(() => speak('Emergency active screen. Your contacts have been notified. One button to go back to the emergency page.'));
       return;
     }
     if (text.includes('back')) {

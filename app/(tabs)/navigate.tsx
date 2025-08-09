@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import * as Speech from 'expo-speech';
+import { speak } from '../../utils/voice';
 import * as Haptics from 'expo-haptics';
 import { Navigation, MapPin, Mic, MicOff, Play, Square, Volume2 } from 'lucide-react-native';
 import { Platform } from 'react-native';
@@ -17,6 +18,7 @@ const NAVIGATION_INSTRUCTIONS = 'GPS Navigation ready. Enter a destination or sa
 
 export default function NavigateScreen() {
   const [destination, setDestination] = useState('');
+  const [awaitingDestination, setAwaitingDestination] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -26,8 +28,8 @@ export default function NavigateScreen() {
 
   useEffect(() => {
     if (!hasSpoken.current) {
-      Speech.speak(NAVIGATION_INSTRUCTIONS);
-      Speech.speak('You can say navigate to and the destination.');
+      speak(NAVIGATION_INSTRUCTIONS);
+      speak('Say go to start voice destination input.');
       hasSpoken.current = true;
       startListening();
     }
@@ -38,21 +40,25 @@ export default function NavigateScreen() {
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => Speech.speak(NAVIGATION_INSTRUCTIONS));
+      handleAndReset(() => speak(NAVIGATION_INSTRUCTIONS));
       return;
     }
-    if (text.includes('read screen')) {
-      handleAndReset(() => Speech.speak('Navigation screen. Enter destination text field and buttons for start, stop, and repeat. You can say navigate to followed by your destination.'));
+    if (text.includes('read') || text.includes('read screen')) {
+      handleAndReset(() => speak('Navigation screen. Destination field and buttons for start, stop, and repeat. Say go to speak your destination. Say stop to cancel.'));
       return;
     }
-    if (text.includes('navigate to')) {
-      const dest = text.split('navigate to')[1]?.trim();
-      if (dest && dest.length > 0) {
-        Speech.speak(`I heard navigate to ${dest}. Starting navigation.`);
+    if (text.includes('go')) {
+      setAwaitingDestination(true);
+      handleAndReset(() => speak('Please say your destination.'));
+      return;
+    }
+    if (awaitingDestination) {
+      const dest = text.trim();
+      if (dest) {
+        setAwaitingDestination(false);
+        speak(`Destination ${dest}. Starting navigation.`);
         setDestination(dest);
         handleAndReset(() => startNavigation());
-      } else {
-        handleAndReset(() => Speech.speak('Please say the destination after navigate to.'));
       }
       return;
     }
@@ -81,7 +87,7 @@ export default function NavigateScreen() {
 
   const startNavigation = () => {
     if (!destination.trim()) {
-      Speech.speak('Please enter a destination first.');
+      speak('Please enter a destination first.');
       return;
     }
 
@@ -90,7 +96,7 @@ export default function NavigateScreen() {
     setIsNavigating(true);
     setCurrentStep(0);
     
-    Speech.speak(steps[0].instruction);
+    speak(steps[0].instruction);
     triggerHapticFeedback(steps[0].hapticPattern);
 
     // Simulate step progression
@@ -99,12 +105,12 @@ export default function NavigateScreen() {
       stepIndex++;
       if (stepIndex < steps.length) {
         setCurrentStep(stepIndex);
-        Speech.speak(steps[stepIndex].instruction);
+        speak(steps[stepIndex].instruction);
         triggerHapticFeedback(steps[stepIndex].hapticPattern);
       } else {
         setIsNavigating(false);
         clearInterval(progressInterval);
-        Speech.speak('Navigation complete. You have arrived at your destination.');
+        speak('Navigation complete. You have arrived at your destination.');
       }
     }, 5000);
   };
@@ -112,7 +118,7 @@ export default function NavigateScreen() {
   const stopNavigation = () => {
     setIsNavigating(false);
     setCurrentStep(0);
-    Speech.speak('Navigation stopped.');
+    speak('Navigation stopped.');
     triggerHapticFeedback('light');
   };
 
@@ -134,10 +140,10 @@ export default function NavigateScreen() {
 
   const repeatCurrentStep = () => {
     if (isNavigating && navigationSteps[currentStep]) {
-      Speech.speak(navigationSteps[currentStep].instruction);
+      speak(navigationSteps[currentStep].instruction);
       triggerHapticFeedback(navigationSteps[currentStep].hapticPattern);
     } else {
-      Speech.speak('No active navigation. Set a destination to begin.');
+      speak('No active navigation. Set a destination to begin.');
     }
   };
 
@@ -207,10 +213,10 @@ export default function NavigateScreen() {
           style={[styles.voiceButton, { backgroundColor: isListening ? '#00AA00' : '#333333' }]}
           onPress={() => {
             if (isListening) {
-              Speech.speak('Voice input disabled');
+              speak('Voice input disabled');
               stopListening();
             } else {
-              Speech.speak('Voice input enabled. Say your destination.');
+              speak('Voice input enabled. Say your destination.');
               startListening();
             }
             setIsListening(!isListening);

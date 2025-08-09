@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as Speech from 'expo-speech';
+import { speak } from '../utils/voice';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
@@ -26,7 +27,7 @@ export function useEmergencyMode(): EmergencyModeHook {
     setIsEmergencyActive(true);
     
     // Announce emergency activation
-    Speech.speak('Emergency mode activated. Broadcasting distress signal and sharing location.');
+    speak('Emergency mode activated. Broadcasting distress signal and sharing location.');
     
     // Continuous haptic pattern
     if (Platform.OS !== 'web') {
@@ -45,7 +46,7 @@ export function useEmergencyMode(): EmergencyModeHook {
 
   const deactivateEmergency = () => {
     setIsEmergencyActive(false);
-    Speech.speak('Emergency mode deactivated.');
+    speak('Emergency mode deactivated.');
     
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -54,7 +55,7 @@ export function useEmergencyMode(): EmergencyModeHook {
 
   const shareLocation = () => {
     // Simulate location sharing
-    Speech.speak('Your location has been shared with your emergency contacts.');
+    speak('Your location has been shared with your emergency contacts.');
     
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -62,7 +63,7 @@ export function useEmergencyMode(): EmergencyModeHook {
   };
 
   const callEmergencyContact = (contact: EmergencyContact) => {
-    Speech.speak(`Calling ${contact.name}`);
+    speak(`Calling ${contact.name}`);
     // In a real app, this would initiate a phone call
     
     if (Platform.OS !== 'web') {
@@ -75,9 +76,9 @@ export function useEmergencyMode(): EmergencyModeHook {
     const beaconMessage = 'Help needed! This is an emergency alert from BrailleWalk. My location has been shared with my emergency contacts.';
     
     // Repeat the beacon message multiple times
-    Speech.speak(beaconMessage);
-    setTimeout(() => Speech.speak(beaconMessage), 5000);
-    setTimeout(() => Speech.speak(beaconMessage), 10000);
+    speak(beaconMessage);
+    setTimeout(() => speak(beaconMessage), 5000);
+    setTimeout(() => speak(beaconMessage), 10000);
   };
 
   return {

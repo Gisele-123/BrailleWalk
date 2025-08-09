@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import * as Speech from 'expo-speech';
+import { useVoiceContext } from '../context/VoiceContext';
 
 let Voice: any;
 if (Platform.OS !== 'web') {
@@ -32,127 +32,7 @@ declare global {
 }
 
 export function useSpeechRecognition(): SpeechRecognitionHook {
-  const [isListening, setIsListening] = useState<boolean>(false);
-  const [transcript, setTranscript] = useState<string>('');
-  const [isConfirming] = useState<boolean>(false);
-
-  // Web recognition instance
-  const webRecognitionRef = useRef<any | null>(null);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const RecognitionClass =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (RecognitionClass) {
-        const recognition = new RecognitionClass();
-        recognition.lang = 'en-US';
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.onresult = (event: any) => {
-          let finalText = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const result = event.results[i];
-            if (result.isFinal) {
-              finalText += result[0].transcript + ' ';
-            }
-          }
-          if (finalText.trim().length > 0) {
-            setTranscript(prev => (prev ? `${prev} ${finalText.trim()}` : finalText.trim()));
-          }
-        };
-        recognition.onerror = () => {
-          setIsListening(false);
-        };
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-        webRecognitionRef.current = recognition;
-      }
-    } else if (Voice) {
-      Voice.onSpeechStart = () => {
-        setIsListening(true);
-      };
-      Voice.onSpeechResults = (event: any) => {
-        const values: string[] = event.value || [];
-        if (values.length > 0) {
-          setTranscript(values[0]);
-        }
-      };
-      Voice.onSpeechPartialResults = (event: any) => {
-        const values: string[] = event.value || [];
-        if (values.length > 0) {
-          setTranscript(values.join(' '));
-        }
-      };
-      Voice.onSpeechError = () => {
-        setIsListening(false);
-      };
-      Voice.onSpeechEnd = () => {
-        setIsListening(false);
-      };
-    }
-
-    return () => {
-      if (Platform.OS === 'web') {
-        const recognition = webRecognitionRef.current;
-        try {
-          recognition?.stop?.();
-        } catch {}
-        webRecognitionRef.current = null;
-      } else if (Voice) {
-        Voice.destroy?.();
-      }
-    };
-  }, []);
-
-  const startListening = async () => {
-    setTranscript('');
-    if (Platform.OS === 'web') {
-      const recognition = webRecognitionRef.current;
-      if (!recognition) {
-        Speech.speak('Speech recognition is not supported in this browser.');
-        return;
-      }
-      try {
-        recognition.start();
-        setIsListening(true);
-      } catch {
-        // Some browsers throw if start called twice
-      }
-    } else if (Voice) {
-      try {
-        await Voice.start('en-US');
-        setIsListening(true);
-      } catch (e) {
-        setIsListening(false);
-      }
-    } else {
-      Speech.speak('Speech recognition is not available on this device.');
-    }
-  };
-
-  const stopListening = async () => {
-    if (Platform.OS === 'web') {
-      try {
-        webRecognitionRef.current?.stop?.();
-      } catch {}
-      setIsListening(false);
-    } else if (Voice) {
-      try {
-        await Voice.stop();
-      } catch {}
-      setIsListening(false);
-    }
-  };
-
-  const resetTranscript = () => {
-    setTranscript('');
-  };
-
-  const confirmCommand = () => {
-    // No confirmation flow in real recognition version
-  };
-
+  const { isListening, transcript, startListening, stopListening, resetTranscript } = useVoiceContext();
   return {
     isListening,
     transcript,
@@ -160,6 +40,6 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
     stopListening,
     resetTranscript,
     isConfirming: false,
-    confirmCommand,
+    confirmCommand: () => {},
   };
 }

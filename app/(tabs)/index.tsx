@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Speech from 'expo-speech';
+import { speak } from '../../utils/voice';
 import * as Haptics from 'expo-haptics';
 import { Camera, Mic, MicOff, Volume2, Scan } from 'lucide-react-native';
 import { Platform } from 'react-native';
@@ -34,8 +35,8 @@ export default function ScannerScreen() {
 
   useEffect(() => {
     if (!hasSpoken.current) {
-      Speech.speak(SCANNER_INSTRUCTIONS);
-      Speech.speak('You can say scan to begin.');
+      speak(SCANNER_INSTRUCTIONS);
+      speak('You can say scan to begin.');
       hasSpoken.current = true;
       startListening();
     }
@@ -43,7 +44,7 @@ export default function ScannerScreen() {
 
   useEffect(() => {
     if (transcript && transcript.toLowerCase().includes('repeat')) {
-      Speech.speak(SCANNER_INSTRUCTIONS);
+      speak(SCANNER_INSTRUCTIONS);
       resetTranscript();
     }
   }, [transcript]);
@@ -56,7 +57,7 @@ export default function ScannerScreen() {
       resetTranscript();
     };
     if (command.includes('repeat')) {
-      handleAndReset(() => Speech.speak(SCANNER_INSTRUCTIONS));
+      handleAndReset(() => speak(SCANNER_INSTRUCTIONS));
       return;
     }
     if (
@@ -65,25 +66,25 @@ export default function ScannerScreen() {
       command.includes('describe') ||
       command.includes('what do you see')
     ) {
-      Speech.speak("I heard 'scan'. Starting scanning.");
+      speak("I heard 'scan'. Starting scanning.");
       handleAndReset(() => {
         if (!isListening) startScanning();
       });
       return;
     }
     if (command.includes('stop') || command.includes('stop scanning')) {
-      Speech.speak("I heard 'stop'. Stopping scanning.");
+      speak("I heard 'stop'. Stopping scanning.");
       handleAndReset(() => {
         if (isListening) stopScanning();
       });
       return;
     }
     if (command.includes('help')) {
-      handleAndReset(() => Speech.speak('Say scan to begin describing your surroundings. Say stop to stop scanning. Say repeat to hear this again. Say read screen for a summary.'));
+      handleAndReset(() => speak('Say scan to begin describing your surroundings. Say stop to stop scanning. Say repeat to hear this again. Say read for a summary.'));
       return;
     }
-    if (command.includes('read screen')) {
-      handleAndReset(() => Speech.speak('Scanner screen. Large button at center to start or stop scanning. Repeat button on the left, help button on the right. I will speak detected objects every few seconds while scanning.'));
+    if (command.includes('read') || command.includes('read screen')) {
+      handleAndReset(() => speak('Scanner screen. Large button at center to start or stop scanning. Repeat button on the left, help button on the right. I will speak detected objects every few seconds while scanning.'));
       return;
     }
   }, [transcript]);
@@ -130,7 +131,7 @@ export default function ScannerScreen() {
       );
       const fullDescription = `I can see: ${descriptions.join(', ')}`;
       setLastDescription(fullDescription);
-      Speech.speak(fullDescription);
+      speak(fullDescription);
 
       // Haptic feedback for detection
       if (Platform.OS !== 'web') {
@@ -139,7 +140,7 @@ export default function ScannerScreen() {
     } else {
       const noObjectsMsg = 'No objects detected in this direction. Try moving the camera slowly.';
       setLastDescription(noObjectsMsg);
-      Speech.speak(noObjectsMsg);
+      speak(noObjectsMsg);
     }
   };
 
@@ -149,7 +150,7 @@ export default function ScannerScreen() {
       return;
     }
 
-    Speech.speak('Starting continuous scanning. I will describe what I see every few seconds.');
+    speak('Starting continuous scanning. I will describe what I see every few seconds.');
     setIsListening(true);
 
     // Start continuous detection
@@ -162,7 +163,7 @@ export default function ScannerScreen() {
   };
 
   const stopScanning = () => {
-    Speech.speak('Scanning stopped.');
+    speak('Scanning stopped.');
     setIsListening(false);
     setDetectedObjects([]);
 
@@ -177,9 +178,9 @@ export default function ScannerScreen() {
 
   const repeatDescription = () => {
     if (lastDescription) {
-      Speech.speak(lastDescription);
+      speak(lastDescription);
     } else {
-      Speech.speak('No recent scan results. Start scanning to hear environment descriptions.');
+      speak('No recent scan results. Start scanning to hear environment descriptions.');
     }
   };
 
@@ -270,7 +271,7 @@ export default function ScannerScreen() {
 
           <TouchableOpacity
             style={styles.secondaryButton}
-            onPress={() => Speech.speak('Camera scanner. Use this to identify objects, text, and hazards around you.')}
+            onPress={() => speak('Camera scanner. Use this to identify objects, text, and hazards around you.')}
             accessible={true}
             accessibilityLabel="Get help with scanner"
             accessibilityRole="button"
