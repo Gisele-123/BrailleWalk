@@ -7,6 +7,9 @@ import * as Haptics from 'expo-haptics';
 import { Camera, Mic, MicOff, Volume2, Scan } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useAnnounceScreen } from '../../hooks/useAnnounceScreen';
+import { useVoiceContext } from '../../context/VoiceContext';
+import PushToTalk from '../../components/PushToTalk';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,29 +25,24 @@ interface DetectedObject {
   direction: string;
 }
 
-const SCANNER_INSTRUCTIONS = 'Environment Scanner ready. Tap the large button to start scanning, or say "scan room" to begin.';
+// Remove this constant since we're using navigation context
 
 export default function ScannerScreen() {
+  useAnnounceScreen('scanner');
+  const { hasMicPermission, requestMicPermission } = useVoiceContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [isListening, setIsListening] = useState(false);
   const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
   const [lastDescription, setLastDescription] = useState('');
   const detectionInterval = useRef<NodeJS.Timeout | null>(null);
   const { transcript, resetTranscript, startListening, stopListening } = useSpeechRecognition();
-  const hasSpoken = useRef(false);
 
-  useEffect(() => {
-    if (!hasSpoken.current) {
-      speak(SCANNER_INSTRUCTIONS);
-      speak('You can say scan to begin.');
-      hasSpoken.current = true;
-      startListening();
-    }
-  }, []);
+  // Initial announcements are handled by useAnnounceScreen.
 
   useEffect(() => {
     if (transcript && transcript.toLowerCase().includes('repeat')) {
-      speak(SCANNER_INSTRUCTIONS);
+      const instructions = getScreenInstructions('scanner');
+      speak(instructions);
       resetTranscript();
     }
   }, [transcript]);
@@ -57,7 +55,7 @@ export default function ScannerScreen() {
       resetTranscript();
     };
     if (command.includes('repeat')) {
-      handleAndReset(() => speak(SCANNER_INSTRUCTIONS));
+      handleAndReset(() => speak(getScreenInstructions('scanner')));
       return;
     }
     if (
@@ -205,6 +203,17 @@ export default function ScannerScreen() {
         >
           <Text style={styles.permissionButtonText}>Enable Camera</Text>
         </TouchableOpacity>
+        {!hasMicPermission && (
+          <TouchableOpacity
+            style={[styles.permissionButton, { marginTop: 16 }]}
+            onPress={requestMicPermission}
+            accessible={true}
+            accessibilityLabel="Grant microphone permission"
+            accessibilityRole="button"
+          >
+            <Text style={styles.permissionButtonText}>Enable Microphone</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -279,6 +288,7 @@ export default function ScannerScreen() {
             <Camera size={24} color="#000000" />
             <Text style={styles.secondaryButtonText}>Help</Text>
           </TouchableOpacity>
+
         </View>
       </CameraView>
     </View>

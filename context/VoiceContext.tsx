@@ -9,6 +9,8 @@ type VoiceContextValue = {
   startListening: () => Promise<void> | void;
   stopListening: () => Promise<void> | void;
   resetTranscript: () => void;
+  hasMicPermission: boolean;
+  requestMicPermission: () => Promise<boolean>;
 };
 
 const VoiceContext = createContext<VoiceContextValue | undefined>(undefined);
@@ -26,8 +28,11 @@ if (Platform.OS !== 'web') {
 export function VoiceProvider({ children }: { children: React.ReactNode }) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [hasMicPermission, setHasMicPermission] = useState<boolean>(Platform.OS !== 'android');
   const webRecognitionRef = useRef<any | null>(null);
   const ttsSpeakingRef = useRef<boolean>(false);
+  const startInProgressRef = useRef<boolean>(false);
+  const lastStartTimestampRef = useRef<number>(0);
 
   const pauseRecognition = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -40,10 +45,14 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resumeRecognition = useCallback(async () => {
-    if (!ttsSpeakingRef.current) {
-      await startListening();
-    }
-  }, []);
+    if (ttsSpeakingRef.current) return;
+    // Debounce rapid restarts within 300ms
+    const now = Date.now();
+    if (now - lastStartTimestampRef.current < 300) return;
+    if (startInProgressRef.current) return;
+    if (isListening) return;
+    await startListening();
+  }, [isListening]);
 
   useEffect(() => {
     const unsubscribeStart = onSpeakStart(() => {
@@ -62,6 +71,9 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         recognition.lang = 'en-US';
         recognition.continuous = true;
         recognition.interimResults = true;
+        recognition.onstart = () => {
+          setIsListening(true);
+        };
         recognition.onresult = (event: any) => {
           let finalText = '';
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -78,7 +90,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
           // Auto-resume shortly after if not speaking
           setTimeout(() => {
             if (!ttsSpeakingRef.current) {
-              startListening();
+              resumeRecognition();
             }
           }, 300);
         };
@@ -100,7 +112,7 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         // Auto-resume shortly after if not speaking
         setTimeout(() => {
           if (!ttsSpeakingRef.current) {
-            startListening();
+            resumeRecognition();
           }
         }, 300);
       };
@@ -129,28 +141,49 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     if (Platform.OS !== 'android') return true;
     try {
       const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+      const ok = granted === PermissionsAndroid.RESULTS.GRANTED;
+      setHasMicPermission(ok);
+      return ok;
     } catch {
       return false;
     }
   };
 
+  const requestMicPermission = async (): Promise<boolean> => {
+    if (Platform.OS === 'android') {
+      return await ensureAndroidMicPermission();
+    }
+    // iOS/Web: permission is handled by first use, assume true here
+    setHasMicPermission(true);
+    return true;
+  };
+
   const startListening = async () => {
+    if (startInProgressRef.current) return;
+    if (isListening) return;
+    startInProgressRef.current = true;
+    lastStartTimestampRef.current = Date.now();
     setTranscript('');
     if (Platform.OS === 'web') {
       const recognition = webRecognitionRef.current;
       if (!recognition) {
         Speech.speak('Speech recognition is not supported in this browser.');
+        startInProgressRef.current = false;
         return;
       }
       try {
         recognition.start();
-        setIsListening(true);
-      } catch {}
+        // onstart will set isListening
+      } catch (e) {
+        // swallow invalid state errors when already starting
+      } finally {
+        startInProgressRef.current = false;
+      }
     } else if (VoiceNative) {
       const hasMic = await ensureAndroidMicPermission();
       if (!hasMic) {
         Speech.speak('Microphone permission is required for voice commands. Please enable microphone access in settings.');
+        startInProgressRef.current = false;
         return;
       }
       try {
@@ -158,9 +191,12 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
         setIsListening(true);
       } catch {
         setIsListening(false);
+      } finally {
+        startInProgressRef.current = false;
       }
     } else {
       Speech.speak('Speech recognition is not available on this device.');
+      startInProgressRef.current = false;
     }
   };
 
@@ -182,6 +218,8 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     startListening,
     stopListening,
     resetTranscript,
+    hasMicPermission,
+    requestMicPermission,
   };
 
   return <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>;

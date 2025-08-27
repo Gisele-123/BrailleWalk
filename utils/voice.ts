@@ -47,6 +47,11 @@ export function speak(text: string, options: SpeakOptions & { onDone?: VoidFn; o
     ...options,
   };
 
+  // Always interrupt any ongoing speech before starting a new utterance
+  try {
+    Speech.stop();
+  } catch {}
+
   // Notify start listeners synchronously
   onSpeakStartListeners.forEach((fn) => fn());
 
@@ -80,6 +85,20 @@ export async function isSpeakingAsync(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export function speakAndWait(text: string, options: SpeakOptions = {}): Promise<void> {
+  return new Promise<void>((resolve) => {
+    // Ensure we stop any ongoing speech before starting
+    try { Speech.stop(); } catch {}
+
+    speak(text, {
+      ...options,
+      onDone: () => resolve(),
+      onStopped: () => resolve(),
+      onError: () => resolve(),
+    });
+  });
 }
 
 

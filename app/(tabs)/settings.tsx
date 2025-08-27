@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { Settings, Volume2, VolumeX, Vibrate, Moon, Sun, Mic, Shield, Camera } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useNavigationContext } from '../../context/NavigationContext';
+import { useAnnounceScreen } from '../../hooks/useAnnounceScreen';
 
 interface SettingsOption {
   id: string;
@@ -16,9 +18,10 @@ interface SettingsOption {
   onChange: (value: boolean) => void;
 }
 
-const SETTINGS_INSTRUCTIONS = 'Settings screen. Customize your BrailleWalk experience. All settings have voice descriptions.';
+// Remove this constant since we're using navigation context
 
 export default function SettingsScreen() {
+  useAnnounceScreen('settings');
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [autoScanEnabled, setAutoScanEnabled] = useState(true);
@@ -26,23 +29,15 @@ export default function SettingsScreen() {
   const [voiceCommandsEnabled, setVoiceCommandsEnabled] = useState(true);
   const [emergencyModeEnabled, setEmergencyModeEnabled] = useState(true);
   const { transcript, resetTranscript, startListening } = useSpeechRecognition();
-  const hasSpoken = useRef(false);
 
-  useEffect(() => {
-    if (!hasSpoken.current) {
-      speak(SETTINGS_INSTRUCTIONS);
-      speak('Say read for a summary. Say voice, haptic, auto, contrast, commands, or emergency to toggle.');
-      hasSpoken.current = true;
-      startListening();
-    }
-  }, []);
+  // Initial announcements are handled by useAnnounceScreen.
 
   useEffect(() => {
     if (!transcript) return;
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => speak(SETTINGS_INSTRUCTIONS));
+      handleAndReset(() => speak(getScreenInstructions('settings')));
       return;
     }
     if (text.includes('read') || text.includes('read screen')) {

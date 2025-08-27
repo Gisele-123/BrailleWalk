@@ -6,41 +6,35 @@ import * as Haptics from 'expo-haptics';
 import { Navigation, MapPin, Mic, MicOff, Play, Square, Volume2 } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { navigationService, NavigationRoute, NavigationStep } from '../../utils/navigation';
+import { useAnnounceScreen } from '../../hooks/useAnnounceScreen';
+import { useVoiceContext } from '../../context/VoiceContext';
+import PushToTalk from '../../components/PushToTalk';
 
-interface NavigationStep {
-  instruction: string;
-  distance: string;
-  direction: 'straight' | 'left' | 'right';
-  hapticPattern: 'light' | 'medium' | 'heavy';
-}
+// Remove this interface since we're importing it from navigation.ts
 
-const NAVIGATION_INSTRUCTIONS = 'GPS Navigation ready. Enter a destination or say "navigate to" followed by your destination.';
+// Remove this constant since we're using navigation context
 
 export default function NavigateScreen() {
+  useAnnounceScreen('navigation');
+  const { hasMicPermission, requestMicPermission } = useVoiceContext();
   const [destination, setDestination] = useState('');
   const [awaitingDestination, setAwaitingDestination] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [navigationSteps, setNavigationSteps] = useState<NavigationStep[]>([]);
+  const [navigationRoute, setNavigationRoute] = useState<NavigationRoute | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<string>('');
   const { transcript, resetTranscript, startListening, stopListening } = useSpeechRecognition();
-  const hasSpoken = useRef(false);
 
-  useEffect(() => {
-    if (!hasSpoken.current) {
-      speak(NAVIGATION_INSTRUCTIONS);
-      speak('Say go to start voice destination input.');
-      hasSpoken.current = true;
-      startListening();
-    }
-  }, []);
+  // Initial announcements are handled by useAnnounceScreen.
 
   useEffect(() => {
     if (!transcript) return;
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => speak(NAVIGATION_INSTRUCTIONS));
+      handleAndReset(() => speak(getScreenInstructions('navigation')));
       return;
     }
     if (text.includes('read') || text.includes('read screen')) {
@@ -72,52 +66,69 @@ export default function NavigateScreen() {
     }
   }, [transcript]);
 
-  const generateNavigationSteps = (dest: string): NavigationStep[] => {
-    // Simulate navigation steps
-    return [
-      { instruction: `Starting navigation to ${dest}`, distance: '', direction: 'straight', hapticPattern: 'medium' },
-      { instruction: 'Head straight for 50 feet', distance: '50 feet', direction: 'straight', hapticPattern: 'light' },
-      { instruction: 'Turn right in 10 feet', distance: '10 feet', direction: 'right', hapticPattern: 'heavy' },
-      { instruction: 'Continue straight for 100 feet', distance: '100 feet', direction: 'straight', hapticPattern: 'light' },
-      { instruction: 'Turn left in 15 feet', distance: '15 feet', direction: 'left', hapticPattern: 'heavy' },
-      { instruction: 'Destination ahead on your right', distance: '20 feet', direction: 'right', hapticPattern: 'medium' },
-      { instruction: `You have arrived at ${dest}`, distance: '', direction: 'straight', hapticPattern: 'medium' },
-    ];
+  const getCurrentLocation = async () => {
+    try {
+      const location = await navigationService.getCurrentLocation();
+      if (location) {
+        setCurrentLocation(`Lat: ${location.latitude.toFixed(4)}, Lon: ${location.longitude.toFixed(4)}`);
+        speak(`Current location obtained. Ready for navigation.`);
+      }
+    } catch (error) {
+      console.error('Error getting current location:', error);
+      speak('Unable to get current location.');
+    }
   };
 
-  const startNavigation = () => {
+  const startNavigation = async () => {
     if (!destination.trim()) {
       speak('Please enter a destination first.');
       return;
     }
 
-    const steps = generateNavigationSteps(destination);
-    setNavigationSteps(steps);
-    setIsNavigating(true);
-    setCurrentStep(0);
+    speak('Calculating route to ' + destination + '. Please wait.');
     
-    speak(steps[0].instruction);
-    triggerHapticFeedback(steps[0].hapticPattern);
-
-    // Simulate step progression
-    let stepIndex = 0;
-    const progressInterval = setInterval(() => {
-      stepIndex++;
-      if (stepIndex < steps.length) {
-        setCurrentStep(stepIndex);
-        speak(steps[stepIndex].instruction);
-        triggerHapticFeedback(steps[stepIndex].hapticPattern);
-      } else {
-        setIsNavigating(false);
-        clearInterval(progressInterval);
-        speak('Navigation complete. You have arrived at your destination.');
+    try {
+      const route = await navigationService.getNavigationRoute(destination);
+      if (!route) {
+        speak('Unable to calculate route to ' + destination + '. Please try again.');
+        return;
       }
-    }, 5000);
+
+      setNavigationRoute(route);
+      setIsNavigating(true);
+      setCurrentStep(0);
+      
+      // Start location tracking for real-time updates
+      await navigationService.startLocationTracking();
+      
+      speak(route.steps[0].instruction);
+      triggerHapticFeedback(route.steps[0].hapticPattern);
+
+      // Simulate step progression (in real app, this would be based on actual location updates)
+      let stepIndex = 0;
+      const progressInterval = setInterval(() => {
+        stepIndex++;
+        if (stepIndex < route.steps.length) {
+          setCurrentStep(stepIndex);
+          speak(route.steps[stepIndex].instruction);
+          triggerHapticFeedback(route.steps[stepIndex].hapticPattern);
+        } else {
+          setIsNavigating(false);
+          navigationService.stopLocationTracking();
+          clearInterval(progressInterval);
+          speak('Navigation complete. You have arrived at your destination.');
+        }
+      }, 5000);
+    } catch (error) {
+      console.error('Error starting navigation:', error);
+      speak('Error starting navigation. Please try again.');
+    }
   };
 
   const stopNavigation = () => {
     setIsNavigating(false);
     setCurrentStep(0);
+    navigationService.stopLocationTracking();
     speak('Navigation stopped.');
     triggerHapticFeedback('light');
   };
@@ -139,9 +150,9 @@ export default function NavigateScreen() {
   };
 
   const repeatCurrentStep = () => {
-    if (isNavigating && navigationSteps[currentStep]) {
-      speak(navigationSteps[currentStep].instruction);
-      triggerHapticFeedback(navigationSteps[currentStep].hapticPattern);
+    if (isNavigating && navigationRoute && navigationRoute.steps[currentStep]) {
+      speak(navigationRoute.steps[currentStep].instruction);
+      triggerHapticFeedback(navigationRoute.steps[currentStep].hapticPattern);
     } else {
       speak('No active navigation. Set a destination to begin.');
     }
@@ -149,6 +160,19 @@ export default function NavigateScreen() {
 
   return (
     <View style={styles.container}>
+      {!hasMicPermission && (
+        <View style={{ paddingHorizontal: 24, paddingTop: 12 }}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, { backgroundColor: '#FFD700' }]}
+            onPress={requestMicPermission}
+            accessible={true}
+            accessibilityLabel="Grant microphone permission"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.secondaryButtonText, { color: '#000' }]}>Enable Microphone</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <View style={styles.header}>
         <Navigation size={32} color="#FFD700" />
         <Text style={styles.title}>GPS Navigation</Text>
@@ -166,16 +190,26 @@ export default function NavigateScreen() {
           accessibilityLabel="Enter destination"
           accessibilityHint="Type your destination or use voice input"
         />
+        
+        {currentLocation && (
+          <View style={styles.locationContainer}>
+            <Text style={styles.locationLabel}>Current Location:</Text>
+            <Text style={styles.locationText}>{currentLocation}</Text>
+          </View>
+        )}
       </View>
 
-      {isNavigating && (
+      {isNavigating && navigationRoute && (
         <View style={styles.navigationContainer}>
           <Text style={styles.currentStepText}>Current Step:</Text>
           <Text style={styles.instructionText}>
-            {navigationSteps[currentStep]?.instruction}
+            {navigationRoute.steps[currentStep]?.instruction}
           </Text>
           <Text style={styles.progressText}>
-            Step {currentStep + 1} of {navigationSteps.length}
+            Step {currentStep + 1} of {navigationRoute.steps.length}
+          </Text>
+          <Text style={styles.routeInfoText}>
+            Total: {navigationRoute.totalDistance} feet • ~{Math.round(navigationRoute.totalTime / 60)} min
           </Text>
         </View>
       )}
@@ -232,6 +266,18 @@ export default function NavigateScreen() {
           )}
           <Text style={styles.voiceButtonText}>Voice</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={getCurrentLocation}
+          accessible={true}
+          accessibilityLabel="Get current location"
+          accessibilityRole="button"
+        >
+          <MapPin size={24} color="#000000" />
+          <Text style={styles.locationButtonText}>Location</Text>
+        </TouchableOpacity>
+
       </View>
 
       <View style={styles.statusBar}>
@@ -306,6 +352,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#CCCCCC',
   },
+  routeInfoText: {
+    fontSize: 14,
+    color: '#FFD700',
+    marginTop: 8,
+  },
+  locationContainer: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  locationLabel: {
+    fontSize: 14,
+    color: '#FFD700',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#CCCCCC',
+  },
   controlsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -353,6 +423,20 @@ const styles = StyleSheet.create({
   },
   voiceButtonText: {
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  locationButton: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  locationButtonText: {
+    color: '#000000',
     fontSize: 12,
     fontWeight: '600',
     marginTop: 4,

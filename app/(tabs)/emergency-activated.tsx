@@ -5,29 +5,25 @@ import * as Speech from 'expo-speech';
 import { speak } from '../../utils/voice';
 import { useRouter } from 'expo-router';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useNavigationContext } from '../../context/NavigationContext';
+import { useAnnounceScreen } from '../../hooks/useAnnounceScreen';
 
-const EMERGENCY_INSTRUCTIONS = 'Emergency mode is now active. Your location has been shared. Stay calm, help is on the way.';
+// Remove this constant since we're using navigation context
 
 export default function EmergencyActivatedScreen() {
+  useAnnounceScreen('emergency-activated');
   const router = useRouter();
   const { transcript, resetTranscript, startListening } = useSpeechRecognition();
   const hasSpoken = useRef(false);
 
-  useEffect(() => {
-    if (!hasSpoken.current) {
-      speak(EMERGENCY_INSTRUCTIONS);
-      speak('Say back to return, or say read for a summary.');
-      hasSpoken.current = true;
-      startListening();
-    }
-  }, []);
+  // Initial announcements are handled by useAnnounceScreen.
 
   useEffect(() => {
     if (!transcript) return;
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
     if (text.includes('repeat')) {
-      handleAndReset(() => speak(EMERGENCY_INSTRUCTIONS));
+      handleAndReset(() => speak(getScreenInstructions('emergency-activated')));
       return;
     }
     if (text.includes('read') || text.includes('read screen')) {

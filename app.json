@@ -27,7 +27,6 @@
     ],
     "android": {
       "permissions": [
-        "RECORD_AUDIO",
         "RECORD_AUDIO"
       ],
       "package": "com.astrie.braillewalk"

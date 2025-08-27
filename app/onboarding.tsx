@@ -4,33 +4,32 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { Camera, UserCheck, Volume2 } from 'lucide-react-native';
 import * as Speech from 'expo-speech';
-import { speak } from '../utils/voice';
+import { speak, speakAndWait } from '../utils/voice';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useNavigationContext } from '../context/NavigationContext';
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const ONBOARDING_INSTRUCTIONS = [
-  'Welcome to BrailleWalk.',
-  'We need to set up facial recognition for security.',
-  'Tap anywhere to begin camera setup.'
-];
+// Remove this constant since we're using navigation context
 
 export default function OnboardingScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
   const { transcript, resetTranscript, startListening, stopListening, isListening } = useSpeechRecognition();
+  const { getScreenInstructions } = useNavigationContext();
   const hasSpoken = useRef(false);
 
   async function speakInstructions() {
-    for (const line of ONBOARDING_INSTRUCTIONS) {
-      speak(line);
-      await sleep(1200 + line.length * 20);
-    }
-    speak('Say scan to begin.');
-    await sleep(1200);
+    // Structured onboarding with controlled pacing
+    await speakAndWait('Welcome to BrailleWalk.');
+    await sleep(400);
+    await speakAndWait('We need to set up facial recognition for security.');
+    await sleep(400);
+    await speakAndWait('Tap anywhere to begin camera setup, or say scan to begin.');
+    await sleep(250);
     startListening();
   }
 
@@ -44,34 +43,37 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (!transcript) return;
     const text = transcript.toLowerCase();
-    if (text.includes('repeat')) {
-      resetTranscript();
-      speakInstructions();
-      return;
-    }
-    if (text.includes('scan')) {
-      speak("I heard 'scan'. Starting setup.");
-      resetTranscript();
-      stopListening();
-      handleCameraSetup();
-    }
+    (async () => {
+      if (text.includes('repeat')) {
+        resetTranscript();
+        speakInstructions();
+        return;
+      }
+      if (text.includes('scan')) {
+        // Confirm and begin setup
+        await speakAndWait("I heard 'scan'. Starting setup.");
+        resetTranscript();
+        stopListening();
+        handleCameraSetup();
+      }
+    })();
   }, [transcript]);
 
   const handleCameraSetup = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        speak('Camera permission is required for BrailleWalk to function. Please enable camera access in settings.');
+        await speakAndWait('Camera permission is required for BrailleWalk to function. Please enable camera access in settings.');
         return;
       }
     }
     setIsScanning(true);
     // Speak with pauses to allow user to prepare
     async function speakScanInstructions() {
-      speak('Hold your device at arm\'s length and look directly at the camera.');
-      await sleep(2500);
-      speak('Scanning will begin automatically. Please hold still.');
-      await sleep(2500);
+      await speakAndWait('Hold your device at arm\'s length and look directly at the camera.');
+      await sleep(600);
+      await speakAndWait('Scanning will begin automatically. Please hold still.');
+      await sleep(600);
       // Simulate facial recognition process
       setTimeout(() => {
         setScanComplete(true);

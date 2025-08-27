@@ -7,6 +7,11 @@ import { TriangleAlert as AlertTriangle, Phone, MapPin, Volume2, UserPlus, Shiel
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useVoiceConfirmation } from '../../hooks/useVoiceConfirmation';
+import { navigationService } from '../../utils/navigation';
+import { useAnnounceScreen } from '../../hooks/useAnnounceScreen';
+import { useVoiceContext } from '../../context/VoiceContext';
+import PushToTalk from '../../components/PushToTalk';
 
 interface EmergencyContact {
   id: string;
@@ -15,9 +20,11 @@ interface EmergencyContact {
   relationship: string;
 }
 
-const EMERGENCY_INSTRUCTIONS = 'Emergency features ready. Triple tap the red emergency button to activate emergency mode.';
+// Remove this constant since we're using navigation context
 
 export default function EmergencyScreen() {
+  useAnnounceScreen('emergency');
+  const { hasMicPermission, requestMicPermission } = useVoiceContext();
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([
     { id: '1', name: 'Sarah Mutesi', phone: '+250 798 384 666', relationship: 'Sister' },
@@ -28,27 +35,38 @@ export default function EmergencyScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { transcript, resetTranscript, startListening } = useSpeechRecognition();
-  const hasSpoken = useRef(false);
+  const { isAwaitingConfirmation, requestConfirmation, cancelConfirmation } = useVoiceConfirmation();
+  const confirmationRef = useRef<any>(null);
 
-  useEffect(() => {
-    if (!hasSpoken.current) {
-      speak(EMERGENCY_INSTRUCTIONS);
-      speak('Say sos to activate. Say cancel to stop countdown.');
-      hasSpoken.current = true;
-      startListening();
-    }
-  }, []);
+  // Initial announcements are handled by useAnnounceScreen.
 
   useEffect(() => {
     if (!transcript) return;
     const text = transcript.toLowerCase();
     const handleAndReset = (fn: () => void) => { fn(); resetTranscript(); };
+    
+    // Handle confirmation responses
+    if (isAwaitingConfirmation && confirmationRef.current) {
+      if (confirmationRef.current.checkPhrase(text)) {
+        resetTranscript();
+        return;
+      }
+    }
+    
     if (text.includes('repeat')) {
-      handleAndReset(() => speak(EMERGENCY_INSTRUCTIONS));
+      handleAndReset(() => speak(getScreenInstructions('emergency')));
       return;
     }
     if (text.includes('sos') || text.includes('emergency')) {
-      handleAndReset(() => startEmergencyCountdown());
+      handleAndReset(() => {
+        confirmationRef.current = requestConfirmation(
+          () => startEmergencyCountdown(),
+          {
+            message: 'Are you sure you want to activate emergency mode? This will share your location and contact emergency services.',
+            timeout: 15000
+          }
+        );
+      });
       return;
     }
     if (text.includes('cancel')) {
@@ -59,7 +77,7 @@ export default function EmergencyScreen() {
       handleAndReset(() => speak('Emergency screen. Large red emergency button in the center. Quick actions for share location and instructions. List of emergency contacts below.'));
       return;
     }
-  }, [transcript]);
+  }, [transcript, isAwaitingConfirmation]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -121,11 +139,16 @@ export default function EmergencyScreen() {
     }
   };
 
-  const shareLocation = () => {
+  const shareLocation = async () => {
     speak('Sharing your current location with emergency contacts.');
-    // Simulate location sharing
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    try {
+      const success = await navigationService.shareLocation();
+      if (success && Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error sharing location:', error);
+      speak('Unable to share location. Please try again.');
     }
   };
 
@@ -148,6 +171,19 @@ export default function EmergencyScreen() {
 
   return (
     <View style={styles.container}>
+      {!isLoading && !hasMicPermission && (
+        <View style={{ paddingHorizontal: 24, paddingTop: 12 }}>
+          <TouchableOpacity
+            style={[styles.quickActionButton, { backgroundColor: '#FFD700' }]}
+            onPress={requestMicPermission}
+            accessible={true}
+            accessibilityLabel="Grant microphone permission"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.quickActionText, { color: '#000' }]}>Enable Microphone</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#FFD700" />
@@ -227,6 +263,7 @@ export default function EmergencyScreen() {
               showsVerticalScrollIndicator={false}
             />
           </View>
+
         </>
       )}
     </View>
